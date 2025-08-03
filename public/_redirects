@@ -1,6 +1,9 @@
 # Redirect API calls to backend
-/api/* http://localhost:8000/api/:splat 200
-/copilotkit/* http://localhost:8000/copilotkit/:splat 200
+/api/* http://3.7.62.30:8000/api/:splat 200
+/copilotkit/* http://3.7.62.30:8000/copilotkit/:splat 200
 
-# SPA fallback
-/* /index.html 200 
+# SPA fallback - redirect all routes to index.html
+/* /index.html 200
+
+# Handle direct index.html access
+/index.html /index.html 200 

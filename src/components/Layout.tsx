@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { Settings, Menu, X, MessageCircle } from 'lucide-react'
+import { Settings, Menu, X, MessageCircle, Users } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { clsx } from 'clsx'
+import Modal from './ui/Modal'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -11,6 +12,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [isDevelopersModalOpen, setIsDevelopersModalOpen] = useState(false)
 
   useEffect(() => {
     const checkMobile = () => {
@@ -37,12 +39,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       href: '/settings',
       icon: Settings,
       current: location.pathname === '/settings'
+    },
+    {
+      name: 'Developers',
+      href: '#',
+      icon: Users,
+      current: false,
+      onClick: () => setIsDevelopersModalOpen(true)
     }
   ]
 
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false)
   }
+
+  const developers = [
+    { name: 'Abhishek Verma', role: 'Developer' },
+    { name: 'Anurag Mathur', role: 'Developer' },
+    { name: 'Mohd Zakir Hussain', role: 'AI Developer' },
+    { name: 'Ravitosh Kumar Arya', role: 'DevOps' },
+    { name: 'Tejsingh', role: 'QA' }
+  ]
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -91,26 +108,52 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         <nav className={clsx('flex flex-col space-y-2', isMobile ? 'w-full px-4' : '')}>
           {navigation.map((item) => {
             const Icon = item.icon
+            const isButton = item.href === '#'
+            
+            const content = (
+              <>
+                <Icon size={20} />
+                {isMobile && (
+                  <span className="ml-3">{item.name}</span>
+                )}
+              </>
+            )
+            
+            const className = clsx(
+              'flex items-center rounded-lg transition-colors',
+              isMobile
+                ? 'px-3 py-2 text-sm font-medium'
+                : 'p-2 justify-center',
+              item.current
+                ? 'bg-primary-100 text-primary-600'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            )
+            
+            if (isButton) {
+              return (
+                <button
+                  key={item.name}
+                  onClick={() => {
+                    item.onClick?.()
+                    closeMobileMenu()
+                  }}
+                  className={className}
+                  title={!isMobile ? item.name : undefined}
+                >
+                  {content}
+                </button>
+              )
+            }
+            
             return (
               <Link
                 key={item.name}
                 to={item.href}
                 onClick={closeMobileMenu}
-                className={clsx(
-                  'flex items-center rounded-lg transition-colors',
-                  isMobile
-                    ? 'px-3 py-2 text-sm font-medium'
-                    : 'p-2 justify-center',
-                  item.current
-                    ? 'bg-primary-100 text-primary-600'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                )}
+                className={className}
                 title={!isMobile ? item.name : undefined}
               >
-                <Icon size={20} />
-                {isMobile && (
-                  <span className="ml-3">{item.name}</span>
-                )}
+                {content}
               </Link>
             )
           })}
@@ -135,6 +178,46 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         {isMobile && <div className="h-16" />}
         {children}
       </div>
+
+      {/* Developers Modal */}
+      <Modal
+        isOpen={isDevelopersModalOpen}
+        onClose={() => setIsDevelopersModalOpen(false)}
+        title="Development Team"
+        size="md"
+        variant="gradient"
+      >
+        <div className="space-y-6">
+          <p className="text-gray-600 text-center mb-6">
+            Meet the talented team behind Project Enigma
+          </p>
+          <div className="grid gap-4">
+            {developers.map((developer, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-4 bg-white/50 rounded-lg border border-gray-200/50 hover:bg-white/80 transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <span className="text-white font-bold text-sm">
+                      {developer.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{developer.name}</h3>
+                    <p className="text-sm text-gray-600">{developer.role}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-800 text-center">
+              🚀 Dedicated to delivering exceptional AI-powered automation solutions
+            </p>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

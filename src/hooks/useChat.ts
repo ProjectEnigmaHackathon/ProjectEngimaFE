@@ -30,7 +30,7 @@ export interface UseChatOptions {
 }
 
 export function useChat(options: UseChatOptions = {}) {
-  const { apiUrl = '/api/chat', onMessage, onError, releaseParameters } = options
+  const { apiUrl = '/api/chat/', onMessage, onError, releaseParameters } = options
   const API_BASE_URL = `${(import.meta as any).env?.VITE_API_URL}/api`
   
   const [state, setState] = useState<ChatState>({
@@ -59,12 +59,22 @@ export function useChat(options: UseChatOptions = {}) {
   }, [onMessage])
   
   const updateMessage = useCallback((id: string, updates: Partial<ChatMessage>) => {
-    setState(prev => ({
-      ...prev,
-      messages: prev.messages.map(msg => 
-        msg.id === id ? { ...msg, ...updates } : msg
-      )
-    }))
+    setState(prev => {
+      const existingMessage = prev.messages.find(msg => msg.id === id)
+      // Only update if content has actually changed or streaming status changed
+      if (existingMessage && 
+          existingMessage.content === updates.content && 
+          existingMessage.streaming === updates.streaming) {
+        return prev
+      }
+      
+      return {
+        ...prev,
+        messages: prev.messages.map(msg => 
+          msg.id === id ? { ...msg, ...updates } : msg
+        )
+      }
+    })
   }, [])
   
   const sendMessage = useCallback(async (content: string) => {
@@ -86,13 +96,16 @@ export function useChat(options: UseChatOptions = {}) {
     const pollWorkflowMessages = async (workflowId: string, messageId: string) => {
       let processedMessageCount = 0
       let accumulatedContent = ''
-      let count = 0
+      let consecutiveErrors = 0
+      const maxConsecutiveErrors = 5
+      let lastUpdateTime = 0
+      const updateThrottle = 500 // Update UI every 500ms max
       
-      try {
-        while (count < 15) {
+      while (true) {
+        try {
           // Check if request was aborted
-          count++
           if (abortControllerRef.current?.signal.aborted) {
+            console.log('Polling aborted by user')
             break
           }
           
@@ -111,12 +124,12 @@ export function useChat(options: UseChatOptions = {}) {
           const data = await response.json()
           console.log('Workflow status:', data)
           
+          // Reset error counter on successful fetch
+          consecutiveErrors = 0
+          
           // Process new messages
           if (data.messages && Array.isArray(data.messages)) {
             const newMessages = data.messages.slice(processedMessageCount)
-            // if(processedMessageCount>0 && (newMessages || newMessages.length === 0)) {
-            //   break
-            // }
             for (const message of newMessages) {
               // Only append AI messages and relevant tool messages to the chat
               if (message.type === 'AIMessage' || 
@@ -145,28 +158,52 @@ export function useChat(options: UseChatOptions = {}) {
             
             processedMessageCount = data.messages.length
             
-            // Update the message with accumulated content
-            if (accumulatedContent.trim()) {
+            // Throttle UI updates to reduce flickering
+            const currentTime = Date.now()
+            if (accumulatedContent.trim() && (currentTime - lastUpdateTime > updateThrottle)) {
               updateMessage(messageId, { content: accumulatedContent.trim() })
+              lastUpdateTime = currentTime
             }
           }
           
-          // Check if workflow is complete
-          if (data.status === 'completed' || data.status === 'failed' || !data.is_running) {
-            updateMessage(messageId, { streaming: false })
+          // Check if workflow is definitely complete
+          // Only exit when status is explicitly completed/failed AND is_running is false
+          if ((data.status === 'completed' || data.status === 'failed') && data.is_running === false) {
+            // Make sure to update with final content when streaming ends
+            updateMessage(messageId, { 
+              content: accumulatedContent.trim() || 'No response received',
+              streaming: false 
+            })
             console.log('Workflow completed with status:', data.status)
-         
+            break // Exit the polling loop
           }
           
-          // Wait before next poll (2 seconds)
+          // Always wait between polls to prevent overwhelming the server
           await new Promise(resolve => setTimeout(resolve, 2000))
+          
+        } catch (error) {
+          consecutiveErrors++
+          console.error(`Polling error (${consecutiveErrors}/${maxConsecutiveErrors}):`, error)
+          
+                     // If we hit too many consecutive errors, stop polling
+           if (consecutiveErrors >= maxConsecutiveErrors) {
+             console.error('Too many consecutive errors, stopping polling')
+             updateMessage(messageId, { 
+               content: accumulatedContent.trim() || 'Error: Failed to poll workflow messages after multiple attempts',
+               streaming: false 
+             })
+             break
+           }
+          
+          // If it's an abort error, stop immediately
+          if (error instanceof Error && error.name === 'AbortError') {
+            console.log('Polling aborted')
+            break
+          }
+          
+          // Wait before retrying
+          await new Promise(resolve => setTimeout(resolve, 3000))
         }
-      } catch (error) {
-        console.error('Polling error:', error)
-        updateMessage(messageId, { 
-          content: accumulatedContent || 'Error: Failed to poll workflow messages',
-          streaming: false 
-        })
       }
     }
     

@@ -12,7 +12,11 @@ import {
   Rocket,
   GitBranch,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Bot,
+  Lightbulb,
+  Code,
+  Zap
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -62,7 +66,7 @@ const ChatPage: React.FC = () => {
       }
     : null
 
-  const { messages, isLoading, error, sendMessage, clearMessages, addMessage } = useChat({
+  const { messages, isLoading, error, sendMessage, clearMessages } = useChat({
     apiUrl: '/chat',
     releaseParameters,
     onError: (error) => console.error('Chat error:', error)
@@ -85,10 +89,18 @@ const ChatPage: React.FC = () => {
     loadRepositories()
   }, [])
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive (but not during streaming updates)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    // Only auto-scroll when messages length changes (new messages added)
+    // Don't scroll during streaming content updates
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage && !lastMessage.streaming) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    } else if (messages.length > 0 && !messages.some(m => m.streaming)) {
+      // Scroll when no messages are currently streaming
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [messages.length]) // Only depend on messages.length, not messages content
 
   // Focus input on mount
   useEffect(() => {
@@ -132,25 +144,91 @@ const ChatPage: React.FC = () => {
 
   const isReleaseFormValid = selectedRepositories.length > 0 && sprintName && fixVersion
 
+  // Suggested prompts
+  const handleSuggestedPrompt = (prompt: string) => {
+    setInputValue(prompt)
+    inputRef.current?.focus()
+  }
+
+  const suggestedPrompts = useReleaseMode ? [
+    {
+      icon: <GitBranch className="w-5 h-5" />,
+      title: "Release Planning",
+      description: "Help me plan the next release",
+      prompt: "Help me plan the next release for my repositories"
+    },
+    {
+      icon: <Code className="w-5 h-5" />,
+      title: "Code Review",
+      description: "Review my recent changes",
+      prompt: "Can you review the recent changes in my repositories?"
+    },
+    {
+      icon: <Zap className="w-5 h-5" />,
+      title: "Deployment",
+      description: "Guide me through deployment",
+      prompt: "Guide me through the deployment process for this release"
+    }
+  ] : [
+    {
+      icon: <Lightbulb className="w-5 h-5" />,
+      title: "Get Started",
+      description: "How can I use this assistant?",
+      prompt: "How can I use this assistant to help with my development workflow?"
+    },
+    {
+      icon: <Rocket className="w-5 h-5" />,
+      title: "Release Mode",
+      description: "What is Release Mode?",
+      prompt: "What is Release Mode and how does it work?"
+    },
+    {
+      icon: <Code className="w-5 h-5" />,
+      title: "Best Practices",
+      description: "Development best practices",
+      prompt: "What are some development and release best practices you can recommend?"
+    }
+  ]
+
   return (
-    <div className="h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-2">
+    <div className="h-screen w-full relative overflow-hidden flex flex-col bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900">
+      {/* Futuristic Background Effects */}
+      <div className="absolute inset-0 pointer-events-none">
+        {/* Animated Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-cyan-600/20 animate-pulse"></div>
+        
+        {/* Geometric Grid Pattern */}
+        <div className="absolute inset-0 opacity-10" style={{
+          backgroundImage: `
+            linear-gradient(rgba(59, 130, 246, 0.5) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(59, 130, 246, 0.5) 1px, transparent 1px)
+          `,
+          backgroundSize: '50px 50px'
+        }}></div>
+        
+        {/* Floating Orbs */}
+        <div className="absolute top-20 left-20 w-32 h-32 bg-blue-500/20 rounded-full blur-xl animate-bounce"></div>
+        <div className="absolute top-40 right-32 w-48 h-48 bg-purple-500/20 rounded-full blur-xl animate-pulse"></div>
+        <div className="absolute bottom-32 left-1/4 w-24 h-24 bg-cyan-500/20 rounded-full blur-xl animate-ping"></div>
+        <div className="absolute bottom-20 right-20 w-40 h-40 bg-indigo-500/20 rounded-full blur-xl animate-bounce"></div>
+      </div>
+              {/* Header */}
+        <div className="bg-white/10 backdrop-blur-md shadow-lg border-b border-white/20 px-6 py-2 relative z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-full p-2">
               <Rocket className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Project Enigma</h1>
-              <p className="text-sm text-gray-600">AI-Powered Release Assistant</p>
+              <h1 className="text-2xl font-bold text-white">Project Enigma</h1>
+              <p className="text-sm text-gray-200">AI-Powered Release Assistant</p>
             </div>
           </div>
           
           <div className="flex items-center gap-3">
             {/* Mode Toggle */}
             <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-gray-700">Mode:</span>
+              <span className="text-sm font-semibold text-white">Mode:</span>
               <div className="flex items-center gap-2">
                 <Button
                   variant={!useReleaseMode ? 'primary' : 'secondary'}
@@ -176,15 +254,18 @@ const ChatPage: React.FC = () => {
               </div>
             </div>
 
+
+
             {/* Release Panel Toggle */}
             {useReleaseMode && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowReleasePanel(!showReleasePanel)}
+                className="text-white hover:text-gray-200"
               >
                 <Settings2 className="w-4 h-4 mr-1" />
-                {showReleasePanel ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                {showReleasePanel ? <ChevronUp className="w-4 h-4 text-white" /> : <ChevronDown className="w-4 h-4 text-white" />}
               </Button>
             )}
           </div>
@@ -192,21 +273,11 @@ const ChatPage: React.FC = () => {
 
         {/* Release Parameters Panel */}
         {useReleaseMode && showReleasePanel && (
-          <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200 relative">
-            {/* Close Button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowReleasePanel(false)}
-              className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 h-5 w-5 p-0"
-            >
-              <X className="w-3 h-3" />
-            </Button>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pr-6">
+          <div className="mt-2 p-3 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {/* Repository Selection */}
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700">
+                <label className="block text-xs font-medium text-white">
                   Repositories *
                 </label>
                 <MultiSelect
@@ -220,7 +291,7 @@ const ChatPage: React.FC = () => {
 
               {/* Sprint Name */}
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700">
+                <label className="block text-xs font-medium text-white">
                   Sprint Name *
                 </label>
                 <Input
@@ -233,7 +304,7 @@ const ChatPage: React.FC = () => {
 
               {/* Fix Version */}
               <div className="space-y-1">
-                <label className="block text-xs font-medium text-gray-700">
+                <label className="block text-xs font-medium text-white">
                   Fix Version *
                 </label>
                 <Input
@@ -249,12 +320,53 @@ const ChatPage: React.FC = () => {
       </div>
 
       {/* Chat Messages */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex-1 overflow-y-auto p-6 min-h-0">
+        <div className="max-w-4xl mx-auto space-y-6 pb-4">
           {messages.length === 0 && (
-            <div className="text-center text-gray-500 mt-12">
-              <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg">Start a conversation!</p>
+            <div className="max-w-3xl mx-auto">
+              {/* Welcome Message */}
+              <div className="text-center mb-12">
+                <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center shadow-lg">
+                  <Bot className="w-10 h-10 text-white" />
+                </div>
+                <h2 className="text-3xl font-bold text-white mb-3">
+                  Hi! I am your assistant
+                </h2>
+                <p className="text-lg text-gray-200 max-w-2xl mx-auto">
+                  {useReleaseMode 
+                    ? "I'm here to help you with release planning, code reviews, and deployment processes." 
+                    : "I'm here to help you with development workflows, best practices, and any questions you have."
+                  }
+                </p>
+              </div>
+
+              {/* Suggested Prompts */}
+              <div className="space-y-4">
+                <h3 className="text-xl font-semibold text-white text-center mb-6">
+                  Try asking me about:
+                </h3>
+                <div className="grid gap-4 md:grid-cols-3">
+                  {suggestedPrompts.map((prompt, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSuggestedPrompt(prompt.prompt)}
+                      className="group p-6 bg-white rounded-2xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300 transform hover:scale-105 text-left"
+                    >
+                      <div className="flex items-center mb-4">
+                        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-3 text-white group-hover:shadow-md transition-shadow">
+                          {prompt.icon}
+                        </div>
+                      </div>
+                      <h4 className="font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+                        {prompt.title}
+                      </h4>
+                      <p className="text-sm text-gray-600 leading-relaxed">
+                        {prompt.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
           
@@ -267,7 +379,7 @@ const ChatPage: React.FC = () => {
               )}
             >
               <div className={clsx(
-                'max-w-[80%] px-6 py-4 rounded-xl shadow-sm',
+                'max-w-[80%] px-6 py-4 rounded-xl shadow-sm transition-all duration-200',
                 message.role === 'user' 
                   ? 'bg-blue-500 text-white ml-12' 
                   : 'bg-white text-gray-900 mr-12 border border-gray-200'
@@ -279,9 +391,13 @@ const ChatPage: React.FC = () => {
                   </div>
                 )}
                 <div 
-                  className="leading-relaxed"
+                  className="leading-relaxed min-h-[1.5rem]"
+                  style={{ 
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word'
+                  }}
                   dangerouslySetInnerHTML={{ 
-                    __html: formatMessageContent(message.content) 
+                    __html: formatMessageContent(message.content || '') 
                   }}
                 />
                 <div className="text-xs opacity-50 mt-2">
@@ -301,30 +417,34 @@ const ChatPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Chat Input */}
-      <div className="bg-white border-t border-gray-200 shadow-lg">
-        <div className="w-full p-4">
-          <form onSubmit={handleSubmit} className="flex gap-3 items-end w-full">
-            <Input
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                useReleaseMode 
-                  ? isReleaseFormValid
-                    ? "Ask about your release process..."
-                    : "Configure release parameters above to get specialized assistance..."
-                  : "Type your message..."
-              }
-              disabled={isLoading}
-              className="flex-1 h-12 text-base px-4 w-full"
-            />
+      {/* Chat Input - Fixed to bottom */}
+      <div className="shrink-0 bg-white/10 backdrop-blur-md border-t border-white/20 shadow-lg">
+        <div className="w-full max-w-4xl mx-auto p-4">
+          <form onSubmit={handleSubmit} className="flex gap-3 items-center w-full">
+            <div className="flex-1 min-w-0">
+              <Input
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={
+                  useReleaseMode 
+                    ? isReleaseFormValid
+                      ? "Ask about your release process..."
+                      : "Configure release parameters above to get specialized assistance..."
+                    : "Type your message..."
+                }
+                disabled={isLoading}
+                className="h-12 text-base px-4 w-full border-white/20 bg-white/90 text-gray-900 placeholder-gray-500"
+                containerClassName="w-full"
+              />
+            </div>
+            
             <Button
               type="submit"
               disabled={!inputValue.trim() || isLoading}
               size="md"
-              className="px-6 h-12 flex-shrink-0"
+              className="px-4 h-12 flex-shrink-0 min-w-[80px] bg-blue-600 hover:bg-blue-700"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -335,40 +455,20 @@ const ChatPage: React.FC = () => {
                 </>
               )}
             </Button>
-          </form>
-          
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-600 text-xs">Mode:</span>
-                <span className={clsx(
-                  "font-medium px-2 py-0.5 rounded text-xs",
-                  useReleaseMode 
-                    ? "bg-blue-100 text-blue-800" 
-                    : "bg-gray-100 text-gray-800"
-                )}>
-                  {useReleaseMode ? 'Release' : 'Free Chat'}
-                </span>
-              </div>
-              {useReleaseMode && isReleaseFormValid && (
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full" />
-                  <span className="text-green-700 text-xs">Configured</span>
-                </div>
-              )}
-            </div>
             
+            {/* Clear Chat Button - After send button */}
             {messages.length > 0 && (
               <Button
                 onClick={clearMessages}
                 variant="ghost"
-                size="sm"
-                className="text-gray-500 hover:text-gray-700 text-xs h-6"
+                size="md"
+                className="px-3 h-12 flex-shrink-0 text-white hover:text-gray-200 bg-red-500/80 hover:bg-red-600/80 border border-red-400/50"
+                title="Clear chat history"
               >
-                Clear chat
+                <X className="w-4 h-4" />
               </Button>
             )}
-          </div>
+          </form>
         </div>
       </div>
     </div>

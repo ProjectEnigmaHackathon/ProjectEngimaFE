@@ -38,12 +38,12 @@ async function apiRequest<T>(
 export const repositoryApi = {
   // Get all repositories
   async getAll(): Promise<ApiResponse<Repository[]>> {
-    return apiRequest<Repository[]>('/repositories')
+    return apiRequest<Repository[]>('/repositories/')
   },
 
   // Create new repository
   async create(repository: Omit<Repository, 'id'>): Promise<ApiResponse<Repository>> {
-    return apiRequest<Repository>('/repositories', {
+    return apiRequest<Repository>('/repositories/', {
       method: 'POST',
       body: JSON.stringify(repository),
     })

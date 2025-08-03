@@ -40,27 +40,27 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     const variantClasses = {
       default: clsx(
         'px-4 py-3 border rounded-xl text-sm',
-        'focus:ring-2 focus:border-transparent',
+        'focus:ring-1 focus:border-transparent',
         'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed',
         error
           ? 'border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500/20 focus:border-red-500'
           : success
           ? 'border-green-300 text-green-900 focus:ring-green-500/20 focus:border-green-500'
           : 'border-gray-200 focus:ring-blue-500/20 focus:border-blue-500',
-        'shadow-sm hover:shadow-md focus:shadow-lg transform hover:translate-y-[-1px] focus:translate-y-[-2px]',
+        'shadow-sm',
         leftIcon && 'pl-11',
         rightIcon && 'pr-11'
       ),
       floating: clsx(
         'px-4 pt-5 pb-1 border rounded-xl text-sm peer',
-        'focus:ring-2 focus:border-transparent',
+        'focus:ring-1 focus:border-transparent',
         'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed',
         error
           ? 'border-red-300 text-red-900 focus:ring-red-500/20 focus:border-red-500'
           : success
           ? 'border-green-300 text-green-900 focus:ring-green-500/20 focus:border-green-500'
           : 'border-gray-200 focus:ring-blue-500/20 focus:border-blue-500',
-        'shadow-sm hover:shadow-md focus:shadow-lg transform hover:translate-y-[-1px] focus:translate-y-[-2px]',
+        'shadow-sm',
         leftIcon && 'pl-11',
         rightIcon && 'pr-11'
       ),
@@ -73,7 +73,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           : success
           ? 'border-green-400 text-green-900 focus:border-green-600'
           : 'border-gray-300 focus:border-blue-500',
-        'shadow-sm hover:shadow-md focus:shadow-lg transform hover:translate-y-[-1px] focus:translate-y-[-2px]',
+        'shadow-sm',
         leftIcon && 'pl-11',
         rightIcon && 'pr-11'
       )
@@ -183,16 +183,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             </div>
           )}
 
-          {/* Focus ring effect */}
-          <div className={clsx(
-            'absolute inset-0 rounded-xl pointer-events-none transition-opacity duration-300',
-            isFocused ? 'opacity-100' : 'opacity-0',
-            error
-              ? 'bg-gradient-to-r from-red-500/10 to-pink-500/10'
-              : success
-              ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10'
-              : 'bg-gradient-to-r from-blue-500/10 to-purple-500/10'
-          )} />
+
         </div>
         
         {/* Helper text or error message */}
