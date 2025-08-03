@@ -1,8 +1,9 @@
 export { default as Button } from './Button'
-export { default as Modal } from './Modal'
-export { default as LoadingSpinner } from './LoadingSpinner'
-export { default as MultiSelect } from './MultiSelect'
 export { default as Input } from './Input'
+export { default as LoadingSpinner } from './LoadingSpinner'
+export { default as Modal } from './Modal'
+export { default as MultiSelect } from './MultiSelect'
+export { ChatSidebar } from './ChatSidebar'
 
 export type { ButtonProps } from './Button'
 export type { ModalProps } from './Modal'

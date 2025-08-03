@@ -118,12 +118,12 @@ export interface ConfluencePage {
 // API request/response types
 export interface ChatRequest {
   message: string;
-  repositories: string[];
+  repositories?: string[];
   sessionId?: string;
   context?: Record<string, any>;
-  releaseType?: "release" | "hotfix";
-  sprintName?: string;
-  fixVersion?: string;
+  release_type?: "release" | "hotfix";
+  sprint_name?: string;
+  fix_version?: string;
 }
 
 export interface ChatResponse {

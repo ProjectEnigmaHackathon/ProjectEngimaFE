@@ -1,260 +1,278 @@
-import { useState, useCallback, useRef, useEffect } from "react";
-import {
-  ChatMessage,
-  ChatRequest,
-  WorkflowEvent,
-  StreamMessage,
-} from "@/types";
-import { chatApi } from "@/services/api";
-import useLocalStorage from "./useLocalStorage";
+import { useState, useCallback, useRef, useEffect } from 'react'
 
-interface UseChatOptions {
-  sessionId?: string;
-  onWorkflowEvent?: (event: WorkflowEvent) => void;
-  onError?: (error: string) => void;
+export interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: Date
+  streaming?: boolean
 }
 
-function useChat(options: UseChatOptions = {}) {
-  const { sessionId = "default", onWorkflowEvent, onError } = options;
+export interface ChatState {
+  messages: ChatMessage[]
+  isLoading: boolean
+  error: string | null
+  isConnected: boolean
+}
 
-  // Store messages in localStorage for persistence
-  const [messages, setMessages] = useLocalStorage<ChatMessage[]>(
-    `chat-messages-${sessionId}`,
-    []
-  );
+export interface ReleaseParameters {
+  repositories: string[]
+  release_type: 'release' | 'hotfix'
+  sprint_name: string
+  fix_version: string
+}
 
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [currentStreamMessage, setCurrentStreamMessage] = useState<string>("");
-  const [connectionStatus, setConnectionStatus] = useState<
-    "connected" | "disconnected" | "reconnecting"
-  >("disconnected");
-  const [retryCount, setRetryCount] = useState(0);
-  const streamReaderRef =
-    useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
-  const reconnectTimeoutRef = useRef<number | null>(null);
-  const maxRetries = 3;
+export interface UseChatOptions {
+  apiUrl?: string
+  onMessage?: (message: ChatMessage) => void
+  onError?: (error: string) => void
+  releaseParameters?: ReleaseParameters | null
+}
 
-  // Add a new message
-  const addMessage = useCallback(
-    (message: Omit<ChatMessage, "id" | "timestamp">) => {
-      const newMessage: ChatMessage = {
-        ...message,
-        id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, newMessage]);
-      return newMessage;
-    },
-    [setMessages]
-  );
-
-  // Update message status
-  const updateMessage = useCallback(
-    (messageId: string, updates: Partial<ChatMessage>) => {
-      setMessages((prev) =>
-        prev.map((msg) => (msg.id === messageId ? { ...msg, ...updates } : msg))
-      );
-    },
-    [setMessages]
-  );
-
-  // Send a message and handle LangGraph streaming response
-  const sendMessage = useCallback(
-    async (
-      content: string,
-      repositories: string[] = [],
-      context?: Record<string, any>
-    ) => {
-      // Add user message
-      addMessage({
-        type: "user",
-        content,
-        status: "sent",
-      });
-
-      // Add assistant message placeholder
-      const assistantMessage = addMessage({
-        type: "assistant",
-        content: "",
-        status: "sending",
-      });
-
-      setIsStreaming(true);
-      setCurrentStreamMessage("");
-      setConnectionStatus("connected");
-
+export function useChat(options: UseChatOptions = {}) {
+  const { apiUrl = '/api/chat', onMessage, onError, releaseParameters } = options
+  const API_BASE_URL = `${(import.meta as any).env?.VITE_API_URL}/api`
+  
+  const [state, setState] = useState<ChatState>({
+    messages: [],
+    isLoading: false,
+    error: null,
+    isConnected: true
+  })
+  
+  const abortControllerRef = useRef<AbortController | null>(null)
+  
+  const addMessage = useCallback((message: Omit<ChatMessage, 'id' | 'timestamp'>) => {
+    const newMessage: ChatMessage = {
+      ...message,
+      id: crypto.randomUUID(),
+      timestamp: new Date()
+    }
+    
+    setState(prev => ({
+      ...prev,
+      messages: [...prev.messages, newMessage]
+    }))
+    
+    onMessage?.(newMessage)
+    return newMessage
+  }, [onMessage])
+  
+  const updateMessage = useCallback((id: string, updates: Partial<ChatMessage>) => {
+    setState(prev => ({
+      ...prev,
+      messages: prev.messages.map(msg => 
+        msg.id === id ? { ...msg, ...updates } : msg
+      )
+    }))
+  }, [])
+  
+  const sendMessage = useCallback(async (content: string) => {
+    if (!content.trim() || state.isLoading) return
+    
+    // Add user message
+    addMessage({ role: 'user', content: content.trim() })
+    
+    // Add placeholder assistant message for streaming
+    const assistantMessage = addMessage({ 
+      role: 'assistant', 
+      content: '', 
+      streaming: true 
+    })
+    
+    setState(prev => ({ ...prev, isLoading: true, error: null }))
+    
+    // Poll messages from workflow endpoint
+    const pollWorkflowMessages = async (workflowId: string, messageId: string) => {
+      let processedMessageCount = 0
+      let accumulatedContent = ''
+      let count = 0
+      
       try {
-        const request: ChatRequest = {
-          message: content,
-          repositories,
-          sessionId,
-          context,
-        };
-
-        // Close existing stream if any
-        if (streamReaderRef.current) {
-          await streamReaderRef.current.cancel();
-          streamReaderRef.current = null;
-        }
-
-        // Get the streaming reader from LangGraph
-        const reader = await chatApi.sendMessage(request);
-        streamReaderRef.current = reader;
-
-        let fullContent = "";
-
-        // Process streaming data
-        await chatApi.processStreamingData(
-          reader,
-          (data: StreamMessage) => {
-            // Handle different message types
-            if (data.type === "content") {
-              fullContent += data.content || "";
-              setCurrentStreamMessage(fullContent);
-              updateMessage(assistantMessage.id, {
-                content: fullContent,
-                status: "sending",
-              });
-            } else if (data.type === "workflow_event") {
-              if (data.event) {
-                const workflowEvent: WorkflowEvent = {
-                  type: "status_update",
-                  data: data.event,
-                  timestamp: new Date(),
-                };
-                onWorkflowEvent?.(workflowEvent);
-              }
-            } else if (data.type === "error") {
-              updateMessage(assistantMessage.id, {
-                content: fullContent || `Error: ${data.error}`,
-                status: "error",
-              });
-              setIsStreaming(false);
-              setCurrentStreamMessage("");
-              setConnectionStatus("disconnected");
-              onError?.(data.error || "Unknown error");
-            }
-          },
-          (error: string) => {
-            // Handle stream errors
-            console.error("LangGraph stream error:", error);
-            setConnectionStatus("disconnected");
-
-            if (retryCount < maxRetries) {
-              console.log(
-                `Stream error, attempting to reconnect... (attempt ${retryCount + 1}/${maxRetries})`
-              );
-              setConnectionStatus("reconnecting");
-              setRetryCount((prev) => prev + 1);
-
-              reconnectTimeoutRef.current = setTimeout(
-                () => {
-                  // Attempt to reconnect
-                  sendMessage(content, repositories, context);
-                },
-                Math.min(1000 * Math.pow(2, retryCount), 10000)
-              ); // Exponential backoff
-            } else {
-              updateMessage(assistantMessage.id, {
-                content:
-                  fullContent ||
-                  "Error: Connection lost after maximum retry attempts",
-                status: "error",
-              });
-              setIsStreaming(false);
-              setCurrentStreamMessage("");
-              onError?.("Connection lost after maximum retry attempts");
-            }
-          },
-          () => {
-            // Handle stream completion
-            updateMessage(assistantMessage.id, {
-              content: fullContent,
-              status: "sent",
-            });
-            setIsStreaming(false);
-            setCurrentStreamMessage("");
-            setConnectionStatus("disconnected");
-            setRetryCount(0);
+        while (count < 15) {
+          // Check if request was aborted
+          count++
+          if (abortControllerRef.current?.signal.aborted) {
+            break
           }
-        );
+          
+          const response = await fetch(`${API_BASE_URL}/chat/status/${workflowId}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal: abortControllerRef.current?.signal
+          })
+          
+          if (!response.ok) {
+            throw new Error(`Status error! status: ${response.status}`)
+          }
+          
+          const data = await response.json()
+          console.log('Workflow status:', data)
+          
+          // Process new messages
+          if (data.messages && Array.isArray(data.messages)) {
+            const newMessages = data.messages.slice(processedMessageCount)
+            // if(processedMessageCount>0 && (newMessages || newMessages.length === 0)) {
+            //   break
+            // }
+            for (const message of newMessages) {
+              // Only append AI messages and relevant tool messages to the chat
+              if (message.type === 'AIMessage' || 
+                  (message.type === 'ToolMessage' && message.content)) {
+                if (message.content) {
+                  // For ToolMessage, try to parse and format the content
+                  let content = message.content
+                  if (message.type === 'ToolMessage') {
+                    try {
+                      const parsed = JSON.parse(content)
+                      // Format tool message content nicely if possible
+                      if (parsed.error) {
+                        content = `Error: ${parsed.error}`
+                      } else if (parsed.found === false) {
+                        content = 'Resource not found'
+                      }
+                    } catch {
+                      // Keep original content if parsing fails
+                    }
+                  }
+                  
+                  accumulatedContent += content + '\n\n'
+                }
+              }
+            }
+            
+            processedMessageCount = data.messages.length
+            
+            // Update the message with accumulated content
+            if (accumulatedContent.trim()) {
+              updateMessage(messageId, { content: accumulatedContent.trim() })
+            }
+          }
+          
+          // Check if workflow is complete
+          if (data.status === 'completed' || data.status === 'failed' || !data.is_running) {
+            updateMessage(messageId, { streaming: false })
+            console.log('Workflow completed with status:', data.status)
+         
+          }
+          
+          // Wait before next poll (2 seconds)
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        }
       } catch (error) {
-        console.error("Error sending message:", error);
-        updateMessage(assistantMessage.id, {
-          content: "Error: Failed to send message",
-          status: "error",
-        });
-        setIsStreaming(false);
-        setCurrentStreamMessage("");
-        setConnectionStatus("disconnected");
-        onError?.(error instanceof Error ? error.message : "Unknown error");
+        console.error('Polling error:', error)
+        updateMessage(messageId, { 
+          content: accumulatedContent || 'Error: Failed to poll workflow messages',
+          streaming: false 
+        })
       }
-    },
-    [sessionId, addMessage, updateMessage, onWorkflowEvent, onError, retryCount]
-  );
-
-  // Stop streaming
-  const stopStreaming = useCallback(async () => {
-    if (streamReaderRef.current) {
-      await streamReaderRef.current.cancel();
-      streamReaderRef.current = null;
     }
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-    setIsStreaming(false);
-    setCurrentStreamMessage("");
-    setConnectionStatus("disconnected");
-    setRetryCount(0);
-  }, []);
-
-  // Clear chat history
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-    stopStreaming();
-  }, [setMessages, stopStreaming]);
-
-  // Load chat history from server (optional)
-  const loadHistory = useCallback(async () => {
+    
     try {
-      const response = await chatApi.getHistory(sessionId);
-      if (response.success && response.data) {
-        // Convert server messages to local format if needed
-        // For now, we rely on localStorage
+      // Cancel any existing request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
       }
+      
+      abortControllerRef.current = new AbortController()
+      
+      // Prepare payload
+      const payload: any = {
+        message: content,
+        session_id: crypto.randomUUID(), // Generate session ID for tracking
+      }
+      
+      // Add release parameters if they exist
+      if (releaseParameters) {
+        payload.repositories = releaseParameters.repositories
+        payload.release_type = releaseParameters.release_type
+        payload.sprint_name = releaseParameters.sprint_name
+        payload.fix_version = releaseParameters.fix_version
+      }
+      
+      console.log('Sending chat request:', payload) // Debug log
+      
+      const response = await fetch(`${API_BASE_URL}${apiUrl}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: abortControllerRef.current.signal
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      // Get initial response with workflow_id
+      const initialData = await response.json()
+      console.log('Initial chat response:', initialData)
+      
+      // Extract workflow_id
+      const workflowId = initialData.data?.workflow_id
+      
+      if (workflowId) {
+        // Start polling from workflow endpoint
+        await pollWorkflowMessages(workflowId, assistantMessage.id)
+      } else {
+        // Fallback to direct message
+        updateMessage(assistantMessage.id, { 
+          content: initialData.message || 'No response received',
+          streaming: false 
+        })
+      }
+      
     } catch (error) {
-      console.error("Failed to load chat history:", error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Request was cancelled
+        return
+      }
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      setState(prev => ({ ...prev, error: errorMessage }))
+      onError?.(errorMessage)
+      
+      // Update the assistant message with error
+      updateMessage(assistantMessage.id, { 
+        content: `Error: ${errorMessage}`,
+        streaming: false 
+      })
+    } finally {
+      setState(prev => ({ ...prev, isLoading: false }))
+      abortControllerRef.current = null
     }
-  }, [sessionId]);
-
-  // Cleanup effect
+  }, [state.messages, state.isLoading, apiUrl, addMessage, updateMessage, onError, releaseParameters, API_BASE_URL])
+  
+  const clearMessages = useCallback(() => {
+    setState(prev => ({ ...prev, messages: [] }))
+  }, [])
+  
+  const stopOperation = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+  }, [])
+  
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Cleanup on unmount
-      if (streamReaderRef.current) {
-        streamReaderRef.current.cancel();
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
       }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-      }
-    };
-  }, []);
-
+    }
+  }, [])
+  
   return {
-    messages,
-    isStreaming,
-    currentStreamMessage,
-    connectionStatus,
-    retryCount,
+    messages: state.messages,
+    isLoading: state.isLoading,
+    error: state.error,
+    isConnected: state.isConnected,
     sendMessage,
-    stopStreaming,
     clearMessages,
-    addMessage,
-    updateMessage,
-    loadHistory,
-  };
-}
-
-export default useChat;
+    stopOperation,
+    addMessage
+  }
+} 

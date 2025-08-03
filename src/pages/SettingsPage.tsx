@@ -249,9 +249,13 @@ const SettingsPage: React.FC = () => {
       <Modal
         isOpen={deleteConfirm.show}
         onClose={() => setDeleteConfirm({ show: false, repoId: '', repoName: '' })}
-        title="Delete Repository"
-        description={`Are you sure you want to delete "${deleteConfirm.repoName}"? This action cannot be undone.`}
+        title={`Delete ${deleteConfirm.repoName}`}
       >
+        <div className="mb-4">
+          <p className="text-gray-600">
+            Are you sure you want to delete "{deleteConfirm.repoName}"? This action cannot be undone.
+          </p>
+        </div>
         <div className="flex justify-end space-x-3">
           <Button
             variant="outline"

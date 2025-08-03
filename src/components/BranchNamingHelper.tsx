@@ -10,7 +10,7 @@ interface BranchNamingHelperProps {
 const BranchNamingHelper: React.FC<BranchNamingHelperProps> = ({ 
   sprintName, 
   fixVersion, 
-  releaseType 
+  releaseType: _releaseType
 }) => {
   const generateExampleBranches = () => {
     const examples = {

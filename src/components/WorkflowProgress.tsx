@@ -140,7 +140,7 @@ const WorkflowProgress: React.FC<WorkflowProgressProps> = ({ repositories, class
 
       <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
         <div className="flex items-center space-x-4">
-          {WORKFLOW_STEPS.map((step, index) => {
+          {WORKFLOW_STEPS.map((step) => {
             const StepIcon = step.icon
             return (
               <div key={step.id} className="flex items-center space-x-1">

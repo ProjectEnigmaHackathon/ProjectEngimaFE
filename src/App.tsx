@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import ChatPage from '@/pages/ChatPage'
 import SettingsPage from '@/pages/SettingsPage'
 import Layout from '@/components/Layout'
@@ -10,14 +10,12 @@ function App() {
     <ErrorBoundary>
       <AppProvider>
         <RepositoryProvider>
-          <Router>
-            <Layout>
-              <Routes>
-                <Route path="/" element={<ChatPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-              </Routes>
-            </Layout>
-          </Router>
+          <Layout>
+            <Routes>
+              <Route path="/" element={<ChatPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+            </Routes>
+          </Layout>
         </RepositoryProvider>
       </AppProvider>
     </ErrorBoundary>

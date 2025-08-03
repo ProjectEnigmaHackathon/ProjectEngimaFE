@@ -2,39 +2,318 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Inter font for better typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Enhanced color variables */
+:root {
+  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  --gradient-success: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  --gradient-accent: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  --shadow-soft: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04);
+  --shadow-medium: 0 4px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 30px -5px rgba(0, 0, 0, 0.05);
+  --shadow-large: 0 10px 40px -10px rgba(0, 0, 0, 0.15), 0 20px 50px -10px rgba(0, 0, 0, 0.1);
+}
+
+/* CopilotKit Chat Toggle Button Customization */
+/* Target the floating chat button in bottom right */
+div[style*="position: fixed"][style*="bottom"][style*="right"] button,
+div[style*="position:fixed"][style*="bottom"][style*="right"] button,
+button[style*="position: fixed"][style*="bottom"][style*="right"],
+button[style*="position:fixed"][style*="bottom"][style*="right"],
+/* Target by CopilotKit specific attributes */
+[data-copilot-chat-button],
+.copilot-chat-button,
+[class*="copilot"][class*="button"],
+button[aria-label*="chat"],
+button[aria-label*="copilot"],
+/* Target circular buttons that look like chat buttons */
+button[style*="border-radius: 50%"],
+button[style*="border-radius:50%"],
+button[style*="border-radius: 9999px"],
+button[style*="border-radius:9999px"],
+/* More universal targeting for floating buttons */
+div[class*="fixed"] button[class*="rounded-full"],
+div[class*="fixed"] button[style*="border-radius"],
+/* Target the specific element structure */
+body > div > div > button,
+#root ~ div button,
+[data-testid*="chat"] button,
+[data-testid*="copilot"] button {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  border: 2px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1) inset !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  width: 60px !important;
+  height: 60px !important;
+  border-radius: 50% !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* Add a subtle shimmer effect */
+div[style*="position: fixed"][style*="bottom"][style*="right"] button::after,
+div[style*="position:fixed"][style*="bottom"][style*="right"] button::after,
+button[style*="position: fixed"][style*="bottom"][style*="right"]::after,
+button[style*="position:fixed"][style*="bottom"][style*="right"]::after,
+[data-copilot-chat-button]::after,
+.copilot-chat-button::after,
+[class*="copilot"][class*="button"]::after,
+button[style*="border-radius: 50%"]::after,
+button[style*="border-radius:50%"]::after,
+button[style*="border-radius: 9999px"]::after,
+button[style*="border-radius:9999px"]::after,
+div[class*="fixed"] button[class*="rounded-full"]::after,
+div[class*="fixed"] button[style*="border-radius"]::after,
+body > div > div > button::after,
+#root ~ div button::after {
+  content: '' !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: -100% !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent) !important;
+  transition: left 0.6s ease !important;
+  z-index: 1 !important;
+}
+
+/* Hover states */
+div[style*="position: fixed"][style*="bottom"][style*="right"] button:hover,
+div[style*="position:fixed"][style*="bottom"][style*="right"] button:hover,
+button[style*="position: fixed"][style*="bottom"][style*="right"]:hover,
+button[style*="position:fixed"][style*="bottom"][style*="right"]:hover,
+[data-copilot-chat-button]:hover,
+.copilot-chat-button:hover,
+[class*="copilot"][class*="button"]:hover,
+button[aria-label*="chat"]:hover,
+button[aria-label*="copilot"]:hover,
+button[style*="border-radius: 50%"]:hover,
+button[style*="border-radius:50%"]:hover,
+button[style*="border-radius: 9999px"]:hover,
+button[style*="border-radius:9999px"]:hover,
+div[class*="fixed"] button[class*="rounded-full"]:hover,
+div[class*="fixed"] button[style*="border-radius"]:hover,
+body > div > div > button:hover,
+#root ~ div button:hover,
+[data-testid*="chat"] button:hover,
+[data-testid*="copilot"] button:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%) !important;
+  transform: scale(1.08) !important;
+  box-shadow: 0 12px 40px rgba(102, 126, 234, 0.5), 0 0 0 2px rgba(255, 255, 255, 0.2) inset !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Shimmer effect on hover */
+div[style*="position: fixed"][style*="bottom"][style*="right"] button:hover::after,
+div[style*="position:fixed"][style*="bottom"][style*="right"] button:hover::after,
+button[style*="position: fixed"][style*="bottom"][style*="right"]:hover::after,
+button[style*="position:fixed"][style*="bottom"][style*="right"]:hover::after,
+[data-copilot-chat-button]:hover::after,
+.copilot-chat-button:hover::after,
+[class*="copilot"][class*="button"]:hover::after,
+button[style*="border-radius: 50%"]:hover::after,
+button[style*="border-radius:50%"]:hover::after,
+button[style*="border-radius: 9999px"]:hover::after,
+button[style*="border-radius:9999px"]:hover::after,
+div[class*="fixed"] button[class*="rounded-full"]:hover::after,
+div[class*="fixed"] button[style*="border-radius"]:hover::after,
+body > div > div > button:hover::after,
+#root ~ div button:hover::after {
+  left: 100% !important;
+}
+
+/* Custom icon for the chat button - replace content */
+div[style*="position: fixed"][style*="bottom"][style*="right"] button::before,
+div[style*="position:fixed"][style*="bottom"][style*="right"] button::before,
+button[style*="position: fixed"][style*="bottom"][style*="right"]::before,
+button[style*="position:fixed"][style*="bottom"][style*="right"]::before,
+[data-copilot-chat-button]::before,
+.copilot-chat-button::before,
+[class*="copilot"][class*="button"]::before,
+button[style*="border-radius: 50%"]::before,
+button[style*="border-radius:50%"]::before,
+button[style*="border-radius: 9999px"]::before,
+button[style*="border-radius:9999px"]::before,
+div[class*="fixed"] button[class*="rounded-full"]::before,
+div[class*="fixed"] button[style*="border-radius"]::before,
+body > div > div > button::before,
+#root ~ div button::before {
+  content: "💬" !important;
+  font-size: 28px !important;
+  line-height: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 10 !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2)) !important;
+}
+
+/* Hide default icon/content */
+div[style*="position: fixed"][style*="bottom"][style*="right"] button > *,
+div[style*="position:fixed"][style*="bottom"][style*="right"] button > *,
+button[style*="position: fixed"][style*="bottom"][style*="right"] > *,
+button[style*="position:fixed"][style*="bottom"][style*="right"] > *,
+[data-copilot-chat-button] > *,
+.copilot-chat-button > *,
+[class*="copilot"][class*="button"] > *,
+button[style*="border-radius: 50%"] > *,
+button[style*="border-radius:50%"] > *,
+button[style*="border-radius: 9999px"] > *,
+button[style*="border-radius:9999px"] > *,
+div[class*="fixed"] button[class*="rounded-full"] > *,
+div[class*="fixed"] button[style*="border-radius"] > *,
+body > div > div > button > *,
+#root ~ div button > * {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Add floating animation to the chat button */
+@keyframes float-chat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* Apply floating animation */
+div[style*="position: fixed"][style*="bottom"][style*="right"] button,
+div[style*="position:fixed"][style*="bottom"][style*="right"] button,
+button[style*="position: fixed"][style*="bottom"][style*="right"],
+button[style*="position:fixed"][style*="bottom"][style*="right"],
+[data-copilot-chat-button],
+.copilot-chat-button,
+[class*="copilot"][class*="button"],
+button[style*="border-radius: 50%"],
+button[style*="border-radius:50%"],
+button[style*="border-radius: 9999px"],
+button[style*="border-radius:9999px"],
+div[class*="fixed"] button[class*="rounded-full"],
+div[class*="fixed"] button[style*="border-radius"],
+body > div > div > button,
+#root ~ div button {
+  animation: float-chat 4s ease-in-out infinite !important;
+}
+
+/* Alternative approach with different icons */
+.chat-button-sparkles::before {
+  content: "✨" !important;
+}
+
+.chat-button-rocket::before {
+  content: "🚀" !important;
+}
+
+.chat-button-zap::before {
+  content: "⚡" !important;
+}
+
+.chat-button-robot::before {
+  content: "🤖" !important;
+}
+
+/* Chat sidebar container with auto-collapse */
+.chat-sidebar-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 384px; /* w-96 equivalent */
+  background: white;
+  border-left: 1px solid #e5e7eb;
+  box-shadow: var(--shadow-large);
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+/* When CopilotKit hides the sidebar, collapse the container */
+.chat-sidebar-container:has([style*="display: none"]),
+.chat-sidebar-container:has([style*="visibility: hidden"]),
+.chat-sidebar-container:empty {
+  width: 0;
+  border: none;
+  box-shadow: none;
+}
+
+/* Fallback for browsers that don't support :has() */
+@supports not selector(:has(*)) {
+  .chat-sidebar-container {
+    container-type: inline-size;
+  }
+  
+  @container (max-width: 0px) {
+    .chat-sidebar-container {
+      width: 0;
+      border: none;
+      box-shadow: none;
+    }
+  }
+}
+
 /* Custom chat message styling */
 .markdown-content {
-  line-height: 1.6;
+  line-height: 1.7;
+  font-weight: 400;
 }
 
 .markdown-content strong {
   font-weight: 600;
-  color: #1f2937;
+  color: #1e293b;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .markdown-content a {
-  text-decoration: underline;
-  transition: color 0.2s ease;
+  text-decoration: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  transition: all 0.3s ease;
+  position: relative;
 }
 
-.markdown-content a:hover {
-  color: #1d4ed8;
+.markdown-content a::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 2px;
+  bottom: -2px;
+  left: 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  transition: width 0.3s ease;
 }
 
-/* Smooth animations for streaming indicators */
+.markdown-content a:hover::after {
+  width: 100%;
+}
+
+/* Enhanced animations */
 @keyframes pulse-dot {
   0%, 80%, 100% {
     transform: scale(0.8);
     opacity: 0.5;
   }
   40% {
-    transform: scale(1);
+    transform: scale(1.2);
     opacity: 1;
   }
 }
 
 .animate-pulse-dot {
-  animation: pulse-dot 1.4s infinite ease-in-out;
+  animation: pulse-dot 1.6s infinite ease-in-out;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
 }
 
 .animate-pulse-dot:nth-child(1) {
@@ -45,29 +324,49 @@
   animation-delay: -0.16s;
 }
 
-/* Custom scrollbar for chat container */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #f8fafc 0px, #e2e8f0 40px, #f8fafc 80px);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Enhanced scrollbar */
 .chat-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 8px;
 }
 
 .chat-scrollbar::-webkit-scrollbar-track {
   background: #f1f5f9;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 .chat-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+  border-radius: 4px;
+  transition: all 0.3s ease;
 }
 
 .chat-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
 }
 
 /* Enhanced streaming message appearance */
 .streaming-gradient {
-  background: linear-gradient(45deg, #f8fafc, #e2e8f0);
+  background: linear-gradient(45deg, #f8fafc, #e2e8f0, #f1f5f9, #e2e8f0);
+  background-size: 400% 400%;
   animation: gradient-shift 3s ease-in-out infinite;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow-soft);
 }
 
 @keyframes gradient-shift {
@@ -79,77 +378,230 @@
   }
 }
 
-/* Repository badge styling */
+/* Enhanced repository badge styling */
 .repo-badge {
   display: inline-flex;
   align-items: center;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0.375rem;
-  font-size: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
   font-weight: 500;
-  background-color: #f3f4f6;
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
   color: #374151;
   margin-right: 0.5rem;
   margin-bottom: 0.25rem;
+  border: 1px solid #e5e7eb;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* Workflow step styling */
+.repo-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+}
+
+/* Enhanced workflow step styling */
 .workflow-step {
   display: block;
   font-weight: 600;
-  color: #1e40af;
-  margin: 1rem 0 0.5rem 0;
-  padding-bottom: 0.25rem;
-  border-bottom: 1px solid #dbeafe;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 1.5rem 0 0.75rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-left: 4px solid;
+  border-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%) 1;
+  box-shadow: var(--shadow-soft);
 }
 
-/* Status indicators */
+/* Enhanced status indicators */
 .status-indicator {
   display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
+  width: 0.75rem;
+  height: 0.75rem;
   border-radius: 50%;
-  margin-right: 0.5rem;
+  margin-right: 0.75rem;
   margin-top: 0.125rem;
   flex-shrink: 0;
+  position: relative;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.8);
+}
+
+.status-indicator::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
 }
 
 .status-success {
-  background-color: #10b981;
+  background: linear-gradient(135deg, #10b981 0%, #047857 100%);
+}
+
+.status-success::after {
+  background: linear-gradient(135deg, #10b981 0%, #047857 100%);
 }
 
 .status-pending {
-  background-color: #f59e0b;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+}
+
+.status-pending::after {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
 }
 
 .status-error {
-  background-color: #ef4444;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+.status-error::after {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Glass morphism effect */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
 }
 
 @layer base {
   html {
     font-family: 'Inter', system-ui, sans-serif;
+    scroll-behavior: smooth;
   }
   
   body {
-    @apply bg-gray-50 text-gray-900;
+    @apply bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 text-gray-900;
+    min-height: 100vh;
+  }
+
+  * {
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply relative overflow-hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    @apply text-white font-medium py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105;
+    box-shadow: var(--shadow-medium);
+  }
+
+  .btn-primary:hover {
+    box-shadow: var(--shadow-large);
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  }
+
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+  }
+
+  .btn-primary:hover::before {
+    left: 100%;
   }
   
   .btn-secondary {
-    @apply bg-secondary-200 hover:bg-secondary-300 text-secondary-900 font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+    @apply bg-white hover:bg-gray-50 text-gray-700 font-medium py-3 px-6 rounded-xl transition-all duration-300 transform hover:scale-105;
+    box-shadow: var(--shadow-soft);
+    border: 1px solid #e5e7eb;
+  }
+
+  .btn-secondary:hover {
+    box-shadow: var(--shadow-medium);
   }
   
   .card {
-    @apply bg-white shadow-sm border border-gray-200 rounded-lg p-6;
+    @apply bg-white rounded-2xl p-8 relative overflow-hidden;
+    box-shadow: var(--shadow-soft);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    transition: all 0.3s ease;
+  }
+
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .card:hover {
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-4px);
   }
   
   .input-field {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+    @apply w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-300;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .input-field:focus {
+    box-shadow: var(--shadow-medium);
+    transform: translateY(-1px);
+  }
+
+  .header-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .text-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .border-gradient {
+    border-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%) 1;
   }
 }

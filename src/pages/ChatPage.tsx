@@ -1,663 +1,376 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Send, Zap, AlertCircle, CheckCircle, GitBranch, Package, Calendar, Tag } from 'lucide-react'
-import { Button, MultiSelect, LoadingSpinner, Input } from '@/components/ui'
-import ApprovalDialog, { ApprovalRequest } from '@/components/ApprovalDialog'
-import WorkflowProgress from '@/components/WorkflowProgress'
-import BranchNamingHelper from '@/components/BranchNamingHelper'
-import { useRepositories } from '@/context'
-import { useChat } from '@/hooks'
-import useApproval from '@/hooks/useApproval'
-import { formatRelativeTime } from '@/utils'
-import { SelectOption } from '@/types'
-
-// Helper function to format streaming content with better HTML formatting
-const formatStreamingContent = (content: string): string => {
-  return content
-    // Convert **text** to <strong>text</strong>
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    // Convert bullet points
-    .replace(/^[\s]*[•·]\s*/gm, '<span class="inline-block w-2 h-2 bg-blue-500 rounded-full mr-2 mt-1.5 flex-shrink-0"></span>')
-    // Convert emoji indicators to styled badges
-    .replace(/^(🚀|🎫|🌳|🔀|👤|🌿|📝|🏷️|🔄|📚|🎉)/gm, '<span class="inline-block text-lg mr-2">$1</span>')
-    // Convert step headers
-    .replace(/^(\*\*Step \d+:.*?\*\*)$/gm, '<div class="font-semibold text-blue-700 mb-2 pb-1 border-b border-blue-200">$1</div>')
-    // Convert repository names to badges
-    .replace(/📁 ([^:]+):/g, '<span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800 mr-2">📁 $1</span>:')
-    // Convert URLs to links
-    .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline">$1</a>')
-    // Convert newlines to HTML breaks
-    .replace(/\n/g, '<br>')
-}
-
-// Repository status indicators
-interface RepositoryStatus {
-  id: string
-  name: string
-  status: 'pending' | 'in_progress' | 'completed' | 'error'
-  currentStep?: string
-  completedSteps: string[]
-}
-
-// Release form data interface
-interface ReleaseFormData {
-  releaseType: 'release' | 'hotfix'
-  sprintName: string
-  fixVersion: string
-  description: string
-}
+import { Button, MultiSelect, Input } from '@/components/ui'
+import { repositoryApi } from '@/services/api'
+import { Repository } from '@/types'
+import { useChat, ReleaseParameters } from '@/hooks/useChat'
+import { 
+  MessageCircle, 
+  Send, 
+  Settings2, 
+  X, 
+  Loader2,
+  Rocket,
+  GitBranch,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react'
+import { clsx } from 'clsx'
 
 const ChatPage: React.FC = () => {
-  const [message, setMessage] = useState('')
-  const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(null)
-  const [pendingApproval, setPendingApproval] = useState<ApprovalRequest | null>(null)
-  const [showApprovalDialog, setShowApprovalDialog] = useState(false)
-  const [isSubmittingApproval, setIsSubmittingApproval] = useState(false)
-  
-  // Structured release context state
-  const [releaseForm, setReleaseForm] = useState<ReleaseFormData>({
-    releaseType: 'release',
-    sprintName: '',
-    fixVersion: '',
-    description: ''
-  })
-  
-  // Repository status tracking
-  const [repositoryStatuses, setRepositoryStatuses] = useState<RepositoryStatus[]>([])
-  
-  const { repositories, selectedRepositories, setSelectedRepositories, loading: repoLoading } = useRepositories()
+  // State for release parameters
+  const [useReleaseMode, setUseReleaseMode] = useState(false)
+  const [showReleasePanel, setShowReleasePanel] = useState(false)
+  const [repositories, setRepositories] = useState<Repository[]>([])
+  const [selectedRepositories, setSelectedRepositories] = useState<string[]>([])
+  const [releaseType] = useState<'release' | 'hotfix'>('release')
+  const [sprintName, setSprintName] = useState('')
+  const [fixVersion, setFixVersion] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  // Chat state
+  const [inputValue, setInputValue] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const chatContainerRef = useRef<HTMLDivElement>(null)
-  
-  const {
-    pendingApprovals,
-    submitApproval,
-    getWorkflowApproval,
-    refreshApprovals,
-    error: approvalError,
-  } = useApproval()
-  
-  const {
-    messages,
-    isStreaming,
-    currentStreamMessage,
-    connectionStatus,
-    retryCount,
-    sendMessage,
-    clearMessages,
-  } = useChat({
-    sessionId: 'main-session',
-    onError: (error) => {
-      console.error('Chat error:', error)
-    },
-    onWorkflowEvent: (event) => {
-      // Handle workflow events, including approval requirements
-      if (event.workflow_id) {
-        setCurrentWorkflowId(event.workflow_id)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Helper function to extract org/repo name from repository URL
+  const getRepositoryName = (repoId: string): string => {
+    const repo = repositories.find(r => r.id === repoId)
+    if (!repo) return repoId
+    
+    // Extract org/repo from URL like https://github.com/org/repo
+    try {
+      const url = new URL(repo.url)
+      const pathParts = url.pathname.split('/').filter(part => part.length > 0)
+      if (pathParts.length >= 2) {
+        return `${pathParts[0]}/${pathParts[1]}`
       }
-      
-      // Update repository status based on workflow events
-      if (event.step && event.data?.repository_id && event.status) {
-        updateRepositoryStatus(event.data.repository_id, event.status, event.step)
-      }
-      
-      // Check if this step requires approval
-      if (event.step === 'human_approval' && event.status === 'running') {
-        checkForPendingApproval(currentWorkflowId || event.workflow_id || null)
-      }
+    } catch (error) {
+      console.warn('Could not parse repository URL:', repo.url)
     }
+    
+    // Fallback to repository name if URL parsing fails
+    return repo.name
+  }
+
+  // Release parameters for chat
+  const releaseParameters: ReleaseParameters | null = useReleaseMode
+    ? {
+        repositories: selectedRepositories.map(getRepositoryName),
+        release_type: releaseType,
+        sprint_name: sprintName,
+        fix_version: fixVersion
+      }
+    : null
+
+  const { messages, isLoading, error, sendMessage, clearMessages, addMessage } = useChat({
+    apiUrl: '/chat',
+    releaseParameters,
+    onError: (error) => console.error('Chat error:', error)
   })
 
-  // Update repository status
-  const updateRepositoryStatus = (repoId: string, status: string, step?: string) => {
-    setRepositoryStatuses(prev => {
-      const existing = prev.find(s => s.id === repoId)
-      const repo = repositories.find(r => r.id === repoId)
-      
-      if (!existing && repo) {
-        return [...prev, {
-          id: repoId,
-          name: repo.name,
-          status: status as 'pending' | 'in_progress' | 'completed' | 'error',
-          currentStep: step,
-          completedSteps: step && status === 'completed' ? [step] : []
-        }]
-      }
-      
-      return prev.map(s => {
-        if (s.id === repoId) {
-          const completedSteps = step && status === 'completed' 
-            ? [...s.completedSteps.filter(cs => cs !== step), step]
-            : s.completedSteps
-          
-          return {
-            ...s,
-            status: status as 'pending' | 'in_progress' | 'completed' | 'error',
-            currentStep: step,
-            completedSteps
-          }
+  // Load repositories on component mount
+  useEffect(() => {
+    const loadRepositories = async () => {
+      try {
+        const response = await repositoryApi.getAll()
+        if (response.success && response.data) {
+          setRepositories(response.data)
         }
-        return s
-      })
-    })
-  }
-
-  // Initialize repository statuses when repositories are selected
-  useEffect(() => {
-    const newStatuses = selectedRepositories
-      .map(repoId => {
-        const repo = repositories.find(r => r.id === repoId)
-        const existing = repositoryStatuses.find(s => s.id === repoId)
-        
-        if (repo && !existing) {
-          return {
-            id: repoId,
-            name: repo.name,
-            status: 'pending' as const,
-            completedSteps: []
-          }
-        }
-        return existing
-      })
-      .filter(Boolean) as RepositoryStatus[]
-    
-    setRepositoryStatuses(newStatuses)
-  }, [selectedRepositories, repositories])
-
-  // Check for pending approvals when workflow ID changes
-  const checkForPendingApproval = async (workflowId: string | null) => {
-    if (!workflowId) return
-    
-    try {
-      const approval = await getWorkflowApproval(workflowId)
-      if (approval && !approval.is_expired) {
-        setPendingApproval(approval)
-        setShowApprovalDialog(true)
-      }
-    } catch (error) {
-      console.error('Error checking for pending approval:', error)
-    }
-  }
-
-  // Handle approval decision
-  const handleApprovalDecision = async (approved: boolean, notes: string) => {
-    if (!pendingApproval) return
-
-    setIsSubmittingApproval(true)
-    try {
-      await submitApproval({
-        workflow_id: pendingApproval.workflow_id,
-        approved,
-        notes,
-        user_id: 'user'
-      })
-      
-      setPendingApproval(null)
-      setShowApprovalDialog(false)
-      
-      // Refresh the chat to see workflow continuation
-      await refreshApprovals()
-    } catch (error) {
-      console.error('Error submitting approval:', error)
-      // Don't close dialog on error, let user retry
-    } finally {
-      setIsSubmittingApproval(false)
-    }
-  }
-
-  // Auto-scroll to bottom when new messages arrive or when streaming
-  useEffect(() => {
-    const scrollToBottom = () => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+      } catch (error) {
+        console.error('Failed to load repositories:', error)
+      } finally {
+        setLoading(false)
       }
     }
-
-    // Scroll when messages change or when streaming
-    scrollToBottom()
-  }, [messages, currentStreamMessage, isStreaming])
-
-  // Check for pending approvals when component mounts or pending approvals change
-  useEffect(() => {
-    if (currentWorkflowId && pendingApprovals.length > 0) {
-      const workflowApproval = pendingApprovals.find(
-        approval => approval.workflow_id === currentWorkflowId
-      )
-      if (workflowApproval && !workflowApproval.is_expired) {
-        setPendingApproval(workflowApproval)
-        setShowApprovalDialog(true)
-      }
-    }
-  }, [currentWorkflowId, pendingApprovals])
-
-  // Monitor current streaming message for approval keywords
-  useEffect(() => {
-    if (currentStreamMessage && currentStreamMessage.includes('Human Approval Required')) {
-      // Give the backend a moment to create the approval checkpoint
-      setTimeout(() => {
-        if (currentWorkflowId) {
-          checkForPendingApproval(currentWorkflowId)
-        }
-      }, 2000)
-    }
-  }, [currentStreamMessage, currentWorkflowId])
-
-  // Initialize with welcome message if no messages exist
-  useEffect(() => {
-    if (messages.length === 0) {
-      // This will be handled by the useChat hook's initial state
-    }
+    loadRepositories()
   }, [])
 
-  const repositoryOptions: SelectOption[] = repositories.map(repo => ({
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // Focus input on mount
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+
+
+  const repositoryOptions = repositories.map(repo => ({
     value: repo.id,
     label: repo.name,
-    disabled: false,
   }))
 
-  const getContextualMessage = (userMessage: string, form: ReleaseFormData): string => {
-    // If form has required fields filled, include context
-    if (form.sprintName.trim() && form.fixVersion.trim()) {
-      return `${userMessage}
-
-Release Context:
-- Release Type: ${form.releaseType.toUpperCase()}
-- Sprint Name: ${form.sprintName}
-- Fix Version: ${form.fixVersion}
-${form.description ? `- Description: ${form.description}` : ''}
-
-Selected Repositories: ${selectedRepositories.map(id => 
-  repositories.find(r => r.id === id)?.name || id
-).join(', ')}`
-    }
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!inputValue.trim() || isLoading) return
     
-    // Otherwise just return the user message
-    return userMessage
+    const message = inputValue.trim()
+    setInputValue('')
+    await sendMessage(message)
   }
 
-  const handleSendMessage = async () => {
-    if (!message.trim()) return
-    
-    if (selectedRepositories.length === 0) {
-      alert('Please select at least one repository before sending a message.')
-      return
-    }
-
-    // Combine user message with structured context
-    const messageContent = getContextualMessage(message, releaseForm)
-
-    // Reset repository statuses when starting a new workflow
-    setRepositoryStatuses(selectedRepositories.map(repoId => {
-      const repo = repositories.find(r => r.id === repoId)!
-      return {
-        id: repoId,
-        name: repo.name,
-        status: 'pending' as const,
-        completedSteps: []
-      }
-    }))
-
-    await sendMessage(messageContent, selectedRepositories, releaseForm)
-    setMessage('')
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSendMessage()
+      const message = inputValue.trim()
+      if (message && !isLoading) {
+        setInputValue('')
+        sendMessage(message)
+      }
     }
   }
 
-  const isFormValid = message.trim()
+  const formatMessageContent = (content: string) => {
+    return content
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>')
+      .replace(/\n/g, '<br />')
+  }
+
+  const isReleaseFormValid = selectedRepositories.length > 0 && sprintName && fixVersion
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-2">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Project Enigma</h1>
-            <p className="text-gray-600">AI-powered release documentation automation</p>
-          </div>
-          <div className="flex items-center space-x-4">
-            {/* Approval Status Indicator */}
-            {pendingApproval && (
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowApprovalDialog(true)}
-                  className="text-orange-600 border-orange-200 hover:bg-orange-50"
-                >
-                  <CheckCircle size={14} className="mr-1" />
-                  Approval Required
-                </Button>
-              </div>
-            )}
-            
-            {/* Connection Status Indicator */}
-            {isStreaming && (
-              <div className="flex items-center space-x-2 text-xs">
-                <div className={`w-2 h-2 rounded-full ${
-                  connectionStatus === 'connected' ? 'bg-green-500' :
-                  connectionStatus === 'reconnecting' ? 'bg-yellow-500 animate-pulse' :
-                  'bg-red-500'
-                }`}></div>
-                <span className={`font-medium ${
-                  connectionStatus === 'connected' ? 'text-green-600' :
-                  connectionStatus === 'reconnecting' ? 'text-yellow-600' :
-                  'text-red-600'
-                }`}>
-                  {connectionStatus === 'connected' ? 'Connected' :
-                   connectionStatus === 'reconnecting' ? 'Reconnecting...' :
-                   'Disconnected'}
-                </span>
-              </div>
-            )}
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={clearMessages}
-              disabled={messages.length === 0}
-            >
-              Clear Chat
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Repository Selection */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3">
-        <div className="flex items-center space-x-4">
-          <label className="text-sm font-medium text-gray-700 min-w-0">
-            Repositories:
-          </label>
-          <div className="flex-1">
-            {repoLoading ? (
-              <div className="flex items-center space-x-2 py-2">
-                <LoadingSpinner size="sm" />
-                <span className="text-sm text-gray-500">Loading repositories...</span>
-              </div>
-            ) : (
-              <MultiSelect
-                options={repositoryOptions}
-                value={selectedRepositories}
-                onChange={setSelectedRepositories}
-                placeholder="Select repositories to include in this workflow..."
-                maxDisplayed={2}
-              />
-            )}
-          </div>
-          {selectedRepositories.length > 0 && (
-            <div className="flex items-center text-sm text-green-600">
-              <Zap size={14} className="mr-1" />
-              {selectedRepositories.length} selected
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-full p-2">
+              <Rocket className="w-6 h-6 text-white" />
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Repository Status Dashboard */}
-      <WorkflowProgress repositories={repositoryStatuses} />
-
-      {/* Release Context Form */}
-      <div className="bg-gray-50 border-b border-gray-200 px-6 py-3">
-        <div className="max-w-4xl mx-auto">
-          <h3 className="text-xs font-semibold text-gray-800 mb-2">Release Context</h3>
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  <Package size={12} className="inline mr-1" />
-                  Type
-                </label>
-                <select
-                  value={releaseForm.releaseType}
-                  onChange={(e) => setReleaseForm(prev => ({ ...prev, releaseType: e.target.value as 'release' | 'hotfix' }))}
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent"
-                  disabled={isStreaming}
-                >
-                  <option value="release">Release</option>
-                  <option value="hotfix">Hotfix</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  <GitBranch size={12} className="inline mr-1" />
-                  Sprint Name
-                </label>
-                <input
-                  type="text"
-                  value={releaseForm.sprintName}
-                  onChange={(e) => setReleaseForm(prev => ({ ...prev, sprintName: e.target.value }))}
-                  placeholder="sprint-2024-01"
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent"
-                  disabled={isStreaming}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  <Tag size={12} className="inline mr-1" />
-                  Fix Version
-                </label>
-                <input
-                  type="text"
-                  value={releaseForm.fixVersion}
-                  onChange={(e) => setReleaseForm(prev => ({ ...prev, fixVersion: e.target.value }))}
-                  placeholder="v2.1.0"
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent"
-                  disabled={isStreaming}
-                />
-              </div>
-              
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  <Calendar size={12} className="inline mr-1" />
-                  Description
-                </label>
-                <input
-                  type="text"
-                  value={releaseForm.description}
-                  onChange={(e) => setReleaseForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Optional notes..."
-                  className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-transparent"
-                  disabled={isStreaming}
-                />
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Project Enigma</h1>
+              <p className="text-sm text-gray-600">AI-Powered Release Assistant</p>
             </div>
-
-            {/* Compact Branch Naming Helper */}
-            {(releaseForm.sprintName || releaseForm.fixVersion) && (
-              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                <div className="flex items-center space-x-1 mb-1">
-                  <GitBranch size={10} className="text-blue-600" />
-                  <span className="font-medium text-blue-800">Expected branches:</span>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                  <div>
-                    <span className="text-gray-600">Feature:</span>
-                    <div className="font-mono text-blue-700">feature/PROJ-123</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Sprint:</span>
-                    <div className="font-mono text-blue-700">{releaseForm.sprintName || 'sprint-2024-01'}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Release:</span>
-                    <div className="font-mono text-blue-700">release/{releaseForm.fixVersion || 'v2.1.0'}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Rollback:</span>
-                    <div className="font-mono text-blue-700">rollback/v-{releaseForm.fixVersion || '2.1.0'}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Chat Messages Window */}
-      <div 
-        ref={chatContainerRef}
-        className="flex-1 overflow-y-auto px-6 py-4 space-y-4 scroll-smooth chat-scrollbar bg-white"
-        style={{
-          scrollBehavior: 'smooth'
-        }}
-      >
-        {messages.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="mx-auto w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mb-4">
-              <Zap className="w-8 h-8 text-primary-600" />
-            </div>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Ready to Start
-            </h3>
-            <p className="text-gray-600 max-w-md mx-auto mb-4">
-              Fill in your release context above, then chat with me below to automate your release documentation.
-            </p>
-            <div className="text-sm text-gray-500">
-              <p>💬 Type your request in the chat box below</p>
-              <p>🚀 I'll help you with the entire workflow</p>
-            </div>
-          </div>
-        ) : (
-          messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-3xl rounded-lg px-4 py-3 ${
-                  msg.type === 'user'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-50 border border-gray-200 text-gray-900 shadow-sm'
-                }`}
-              >
-                <div className="prose prose-sm max-w-none">
-                  {msg.type === 'user' ? (
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                  ) : (
-                    <div 
-                      className="text-sm whitespace-pre-wrap markdown-content"
-                      dangerouslySetInnerHTML={{
-                        __html: formatStreamingContent(msg.content)
-                      }}
-                    />
-                  )}
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <p className={`text-xs ${
-                    msg.type === 'user' ? 'text-primary-100' : 'text-gray-500'
-                  }`}>
-                    {formatRelativeTime(msg.timestamp)}
-                  </p>
-                  {msg.status === 'error' && (
-                    <AlertCircle size={14} className="text-red-500" />
-                  )}
-                  {msg.status === 'sending' && (
-                    <LoadingSpinner size="sm" />
-                  )}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-        
-        {/* Current streaming message */}
-        {isStreaming && currentStreamMessage && (
-          <div className="flex justify-start">
-            <div className="max-w-3xl rounded-lg px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 text-gray-900 shadow-sm">
-              <div className="prose prose-sm max-w-none">
-                <div 
-                  className="text-sm whitespace-pre-wrap markdown-content"
-                  dangerouslySetInnerHTML={{
-                    __html: formatStreamingContent(currentStreamMessage)
-                  }}
-                />
-              </div>
-              <div className="flex items-center justify-between mt-3">
-                <div className="flex items-center space-x-2">
-                  <LoadingSpinner size="sm" />
-                  <span className="text-xs text-blue-600 font-medium">
-                    {connectionStatus === 'reconnecting' 
-                      ? `Reconnecting... (${retryCount}/3)` 
-                      : 'AI is responding...'
-                    }
-                  </span>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse-dot"></div>
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse-dot"></div>
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse-dot"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Invisible element for auto-scrolling */}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Chat Input Area */}
-      <div className="bg-white border-t border-gray-200 px-6 py-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-end space-x-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Chat with AI
-              </label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={handleKeyPress}
-                placeholder="Ask me to create release documentation, or tell me what you'd like to do... (e.g., 'Create release documentation' or 'Help me with the workflow')"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                rows={3}
-                disabled={isStreaming}
-              />
-            </div>
-            <Button
-              onClick={handleSendMessage}
-              disabled={!isFormValid || selectedRepositories.length === 0 || isStreaming}
-              loading={isStreaming}
-              icon={<Send size={16} />}
-              className="px-6 relative"
-            >
-              {isStreaming ? 'Generating...' : 'Send'}
-            </Button>
           </div>
           
-          {selectedRepositories.length === 0 && (
-            <p className="text-xs text-amber-600 mt-2 flex items-center">
-              <AlertCircle size={12} className="mr-1" />
-              Please select at least one repository to proceed
-            </p>
+          <div className="flex items-center gap-3">
+            {/* Mode Toggle */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-gray-700">Mode:</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={!useReleaseMode ? 'primary' : 'secondary'}
+                  size="sm"
+                  onClick={() => setUseReleaseMode(false)}
+                  className="h-9"
+                >
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  Free Chat
+                </Button>
+                <Button
+                  variant={useReleaseMode ? 'primary' : 'secondary'}
+                  size="sm"
+                  onClick={() => {
+                    setUseReleaseMode(true)
+                    setShowReleasePanel(true)
+                  }}
+                  className="h-9"
+                >
+                  <Rocket className="w-4 h-4 mr-2" />
+                  Release Mode
+                </Button>
+              </div>
+            </div>
+
+            {/* Release Panel Toggle */}
+            {useReleaseMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowReleasePanel(!showReleasePanel)}
+              >
+                <Settings2 className="w-4 h-4 mr-1" />
+                {showReleasePanel ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Release Parameters Panel */}
+        {useReleaseMode && showReleasePanel && (
+          <div className="mt-2 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200 relative">
+            {/* Close Button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowReleasePanel(false)}
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 h-5 w-5 p-0"
+            >
+              <X className="w-3 h-3" />
+            </Button>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pr-6">
+              {/* Repository Selection */}
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Repositories *
+                </label>
+                <MultiSelect
+                  options={repositoryOptions}
+                  value={selectedRepositories}
+                  onChange={setSelectedRepositories}
+                  placeholder={loading ? "Loading..." : "Select repositories"}
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Sprint Name */}
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Sprint Name *
+                </label>
+                <Input
+                  value={sprintName}
+                  onChange={(e) => setSprintName(e.target.value)}
+                  placeholder="e.g., Sprint-2024-01"
+                  className="h-7 text-xs"
+                />
+              </div>
+
+              {/* Fix Version */}
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-gray-700">
+                  Fix Version *
+                </label>
+                <Input
+                  value={fixVersion}
+                  onChange={(e) => setFixVersion(e.target.value)}
+                  placeholder="e.g., v2.1.0"
+                  className="h-7 text-xs"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Chat Messages */}
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          {messages.length === 0 && (
+            <div className="text-center text-gray-500 mt-12">
+              <MessageCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg">Start a conversation!</p>
+            </div>
           )}
+          
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={clsx(
+                'flex w-full',
+                message.role === 'user' ? 'justify-end' : 'justify-start'
+              )}
+            >
+              <div className={clsx(
+                'max-w-[80%] px-6 py-4 rounded-xl shadow-sm',
+                message.role === 'user' 
+                  ? 'bg-blue-500 text-white ml-12' 
+                  : 'bg-white text-gray-900 mr-12 border border-gray-200'
+              )}>
+                {message.streaming && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm opacity-70">Typing...</span>
+                  </div>
+                )}
+                <div 
+                  className="leading-relaxed"
+                  dangerouslySetInnerHTML={{ 
+                    __html: formatMessageContent(message.content) 
+                  }}
+                />
+                <div className="text-xs opacity-50 mt-2">
+                  {message.timestamp.toLocaleTimeString()}
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          {error && (
+            <div className="max-w-4xl mx-auto p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-800">Error: {error}</p>
+            </div>
+          )}
+          
+          <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* Approval Dialog */}
-      <ApprovalDialog
-        isOpen={showApprovalDialog}
-        onClose={() => setShowApprovalDialog(false)}
-        approval={pendingApproval}
-        onApprove={handleApprovalDecision}
-        isSubmitting={isSubmittingApproval}
-      />
-
-      {/* Approval Error Display */}
-      {approvalError && (
-        <div className="fixed bottom-4 right-4 bg-red-50 border border-red-200 text-red-700 px-4 py-2 rounded-lg shadow-lg">
-          <div className="flex items-center space-x-2">
-            <AlertCircle size={16} />
-            <span className="text-sm">{approvalError}</span>
+      {/* Chat Input */}
+      <div className="bg-white border-t border-gray-200 shadow-lg">
+        <div className="w-full p-4">
+          <form onSubmit={handleSubmit} className="flex gap-3 items-end w-full">
+            <Input
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                useReleaseMode 
+                  ? isReleaseFormValid
+                    ? "Ask about your release process..."
+                    : "Configure release parameters above to get specialized assistance..."
+                  : "Type your message..."
+              }
+              disabled={isLoading}
+              className="flex-1 h-12 text-base px-4 w-full"
+            />
+            <Button
+              type="submit"
+              disabled={!inputValue.trim() || isLoading}
+              size="md"
+              className="px-6 h-12 flex-shrink-0"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send
+                </>
+              )}
+            </Button>
+          </form>
+          
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600 text-xs">Mode:</span>
+                <span className={clsx(
+                  "font-medium px-2 py-0.5 rounded text-xs",
+                  useReleaseMode 
+                    ? "bg-blue-100 text-blue-800" 
+                    : "bg-gray-100 text-gray-800"
+                )}>
+                  {useReleaseMode ? 'Release' : 'Free Chat'}
+                </span>
+              </div>
+              {useReleaseMode && isReleaseFormValid && (
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full" />
+                  <span className="text-green-700 text-xs">Configured</span>
+                </div>
+              )}
+            </div>
+            
+            {messages.length > 0 && (
+              <Button
+                onClick={clearMessages}
+                variant="ghost"
+                size="sm"
+                className="text-gray-500 hover:text-gray-700 text-xs h-6"
+              >
+                Clear chat
+              </Button>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }

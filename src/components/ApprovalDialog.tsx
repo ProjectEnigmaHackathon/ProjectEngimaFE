@@ -83,7 +83,7 @@ const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
       onClose={handleClose}
       title="Workflow Approval Required"
       size="lg"
-      closeOnOverlayClick={false}
+      closeOnBackdropClick={false}
     >
       <div className="space-y-6">
         {/* Approval Status */}

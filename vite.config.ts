@@ -17,14 +17,14 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3002,
-    host: true,
+    port: 3003,
     proxy: {
+      // Proxy API requests to FastAPI backend
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
-      },
+      }
     },
   },
   build: {
